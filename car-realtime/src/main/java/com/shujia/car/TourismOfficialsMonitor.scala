@@ -21,8 +21,14 @@ object TourismOfficialsMonitor extends SparkTool {
     * import spark.implicits._
     * import org.apache.spark.sql.functions._
     *
-    * @param spark spark的环境
     */
+
+  val groupId = "TourismOfficialsMonitor"
+
+  val dcsProfix = "dcs"
+
+  val dcsCarsKey = "dcs_cars"
+
   override def run(spark: SparkSession): Unit = {
 
 
@@ -34,22 +40,19 @@ object TourismOfficialsMonitor extends SparkTool {
 
     //读取数据
 
-    val carsDS: DStream[CarUtil.Cars] = CarUtil.createCarDStream(
-      ssc,
-      "TourismOfficialsMonitor",
-      "cars"
-    )
+    val carsDS: DStream[CarUtil.Cars] = CarUtil.createCarDStream(ssc, groupId, Constants.CAR_TOPIC)
+
 
     carsDS.foreachRDD(rdd => {
       /**
         * 创建redis链接获取布控列表
         *
         */
-      val jedis = new Jedis("master", 6379)
+      val jedis = new Jedis(Constants.REDIS_HOST, Constants.REDIS_PORT)
 
       import scala.collection.JavaConversions._
       //查询布控列表
-      val dcsCars: List[String] = jedis.smembers("dcs_cars").toList
+      val dcsCars: List[String] = jedis.smembers(dcsCarsKey).toList
 
 
       //将布控列表广播
@@ -66,13 +69,13 @@ object TourismOfficialsMonitor extends SparkTool {
 
       //将数据包到redis中
       filterRDD.foreachPartition(iter => {
-        val jedis = new Jedis("master", 6379)
+        val jedis = new Jedis(Constants.REDIS_HOST, Constants.REDIS_PORT)
 
         //将同一个车辆的数据保存到list中
         iter.foreach(car => {
           val carId: String = car.car
 
-          val key: String = "dcs:" + carId
+          val key: String = dcsProfix + Constants.REDIS_KEY_SPLIT + carId
           val gson = new Gson()
           val jsonStr: String = gson.toJson(car)
 

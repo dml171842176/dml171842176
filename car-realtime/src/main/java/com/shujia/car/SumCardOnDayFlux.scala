@@ -21,16 +21,19 @@ object SumCardOnDayFlux extends SparkTool {
     * import spark.implicits._
     * import org.apache.spark.sql.functions._
     *
-    * @param spark spark的环境
     */
+
+  //消费者组
+  val groupId = "SumCardOnDayFlux"
+  //数据保存在redis中前缀
+  val keyPrefix = "SumCardOnDayFlux"
+  //时间格式化
+  val datePattern = "yyyy-MM-dd"
+
   override def run(spark: SparkSession): Unit = {
 
     //读取数据
-    val carsDS: DStream[CarUtil.Cars] = CarUtil.createCarDStream(
-      ssc,
-      "SumCardOnDayFlux",
-      "cars"
-    )
+    val carsDS: DStream[CarUtil.Cars] = CarUtil.createCarDStream(ssc, groupId, Constants.CAR_TOPIC)
 
 
     /**
@@ -48,27 +51,36 @@ object SumCardOnDayFlux extends SparkTool {
     carsDS.foreachRDD(rdd => {
 
 
-      //获取当前的时间
-      val date = new Date
-      val format = new SimpleDateFormat("yyyy-MM-dd")
-      val day: String = format.format(date)
-
-
       //统计当前batch卡口的车流量
-      val currBatchFlux: RDD[(Long, Int)] = rdd
-        .map(car => (car.card, 1))
+      val currBatchFlux: RDD[(String, Int)] = rdd
+        .map(car => {
+          //卡口编号
+          val card: Long = car.card
+
+          val time: Long = car.time
+          val date = new Date(time * 1000)
+          val format = new SimpleDateFormat(datePattern)
+          //获取事件时间的天
+          val day: String = format.format(date)
+
+          val key: String = day + ":" + card
+
+          (key, 1)
+        })
+
         .reduceByKey(_ + _)
 
 
       //将数据累加保存到redis中
       currBatchFlux.foreachPartition(iter => {
 
-        val jedis = new Jedis("master", 6379)
+        val jedis = new Jedis(Constants.REDIS_HOST, Constants.REDIS_PORT)
 
         iter.foreach(kv => {
-          val card: Long = kv._1
+          val cardAndDay: String = kv._1
           val count: Int = kv._2
-          val key: String = "SumCardOnDayFlux:" + day + ":" + card
+
+          val key: String = keyPrefix + Constants.REDIS_KEY_SPLIT + cardAndDay
 
           //累加计算
           jedis.incrBy(key, count)
