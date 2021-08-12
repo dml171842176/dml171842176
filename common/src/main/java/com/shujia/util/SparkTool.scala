@@ -1,9 +1,11 @@
 package com.shujia.util
 
+import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.streaming.{Durations, StreamingContext}
 
 abstract class SparkTool extends Logging {
 
@@ -13,6 +15,9 @@ abstract class SparkTool extends Logging {
     */
 
   var spark: SparkSession = _
+
+  var sc: SparkContext = _
+  var ssc: StreamingContext = _
 
 
   //编写自定义函数，实现加密处理
@@ -31,6 +36,17 @@ abstract class SparkTool extends Logging {
       .appName(this.getClass.getSimpleName.replace("$", ""))
       //.enableHiveSupport() //开启hive的元数据支持
       .getOrCreate()
+
+
+    /**
+      * 构建Spark Stream环境
+      *
+      */
+
+    sc = spark.sparkContext
+
+    ssc = new StreamingContext(sc, Durations.seconds(5))
+
 
 
 

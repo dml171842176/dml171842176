@@ -1,23 +1,16 @@
 package com.shujia.car
 
-import java.util
-
 import com.google.gson.Gson
-import com.shujia.util.SparkTool
-import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.apache.kafka.common.serialization.StringDeserializer
-import org.apache.spark.SparkContext
+import com.shujia.util.CarUtil.Cars
+import com.shujia.util.{CarUtil, SparkTool}
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.dstream.{DStream, InputDStream}
-import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
-import org.apache.spark.streaming.kafka010.KafkaUtils
-import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
-import org.apache.spark.streaming.{Duration, Durations, StreamingContext}
+import org.apache.spark.streaming.dstream.DStream
 import redis.clients.jedis.Jedis
 
 /**
-  * 稽查布控
+  * 稽查布控  -- 动态修改广播变量
   *
   */
 object TourismOfficialsMonitor extends SparkTool {
@@ -32,41 +25,6 @@ object TourismOfficialsMonitor extends SparkTool {
     */
   override def run(spark: SparkSession): Unit = {
 
-    /**
-      * 构建Spark Stream环境
-      *
-      */
-
-    val sc: SparkContext = spark.sparkContext
-
-    val ssc = new StreamingContext(sc, Durations.seconds(5))
-
-
-    /**
-      * 读取kafka中的数据
-      *
-      */
-    val kafkaParams: Map[String, Object] = Map[String, Object](
-      "bootstrap.servers" -> "master:9092",
-      "key.deserializer" -> classOf[StringDeserializer],
-      "value.deserializer" -> classOf[StringDeserializer],
-      "group.id" -> "asdasd",
-      "auto.offset.reset" -> "earliest",
-      "enable.auto.commit" -> "false"
-    )
-
-    //topic 列表
-    val topics = Array("cars")
-
-    /**
-      * createDirectStream: 主动拉取数据
-      */
-
-    val carsRecordDS: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
-      ssc,
-      PreferConsistent,
-      Subscribe[String, String](topics, kafkaParams)
-    )
 
     /**
       * 通过spark streaming实时读取kafka中的数据进行过滤，将布控列表中车辆过滤出来，将结果保存到redis
@@ -74,15 +32,15 @@ object TourismOfficialsMonitor extends SparkTool {
       */
 
 
-    val carsDS: DStream[String] = carsRecordDS.map(_.value())
+    //读取数据
 
-    val carsCaseDS: DStream[Cars] = carsDS.map(line => {
-      val gson = new Gson()
-      val cars: Cars = gson.fromJson(line, classOf[Cars])
-      cars
-    })
+    val carsDS: DStream[CarUtil.Cars] = CarUtil.createCarDStream(
+      ssc,
+      "TourismOfficialsMonitor",
+      "cars"
+    )
 
-    carsCaseDS.foreachRDD(rdd => {
+    carsDS.foreachRDD(rdd => {
       /**
         * 创建redis链接获取布控列表
         *
@@ -94,12 +52,15 @@ object TourismOfficialsMonitor extends SparkTool {
       val dcsCars: List[String] = jedis.smembers("dcs_cars").toList
 
 
+      //将布控列表广播
+      val broad: Broadcast[List[String]] = sc.broadcast(dcsCars)
+
       jedis.close()
 
 
       //取出布控列表中的车牌号
       val filterRDD: RDD[Cars] = rdd.filter(car => {
-        dcsCars.contains(car.car)
+        broad.value.contains(car.car)
       })
 
 
@@ -122,6 +83,10 @@ object TourismOfficialsMonitor extends SparkTool {
         jedis.close()
       })
 
+
+      //清除广播变量
+      broad.unpersist()
+
     })
 
 
@@ -132,6 +97,5 @@ object TourismOfficialsMonitor extends SparkTool {
 
   }
 
-  case class Cars(car: String, city_code: String, county_code: String, card: Long, camera_id: String, orientation: String, road_id: Long, time: Long, speed: Double)
 
 }
