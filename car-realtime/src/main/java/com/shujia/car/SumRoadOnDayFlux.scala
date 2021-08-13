@@ -4,7 +4,6 @@ import java.lang
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import com.shujia.car.SumCardOnWindowFlux.groupId
 import com.shujia.util.{CarUtil, SparkTool}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
