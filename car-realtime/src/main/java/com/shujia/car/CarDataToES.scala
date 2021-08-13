@@ -5,6 +5,7 @@ import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.client.{Connection, Get, Result, Table}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.types.LongType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.streaming.dstream.DStream
 
@@ -88,6 +89,7 @@ object CarDataToES extends SparkTool {
       val resultDS: DataFrame = carDS
         .withColumn("id", concat($"car", expr("'_'"), $"time"))
         .withColumn("location", array($"lon", $"lat"))
+        .withColumn("_timestamp", $"time".cast(LongType) * 1000)
 
 
       import org.elasticsearch.spark.sql._
