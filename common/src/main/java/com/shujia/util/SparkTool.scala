@@ -61,6 +61,10 @@ abstract class SparkTool extends Logging {
     this.run(spark)
 
 
+    ssc.start()
+    ssc.awaitTermination()
+    ssc.stop()
+
   }
 
   /**

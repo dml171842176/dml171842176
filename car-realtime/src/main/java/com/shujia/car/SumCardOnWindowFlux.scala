@@ -88,10 +88,6 @@ object SumCardOnWindowFlux extends SparkTool {
     })
 
 
-    ssc.start()
-    ssc.awaitTermination()
-    ssc.stop()
-
 
   }
 }

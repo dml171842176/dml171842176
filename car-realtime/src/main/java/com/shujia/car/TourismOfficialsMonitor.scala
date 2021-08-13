@@ -92,12 +92,6 @@ object TourismOfficialsMonitor extends SparkTool {
 
     })
 
-
-    ssc.start()
-    ssc.awaitTermination()
-    ssc.stop()
-
-
   }
 
 

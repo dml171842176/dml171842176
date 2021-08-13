@@ -96,9 +96,5 @@ object SumCardOnDayFlux extends SparkTool {
     })
 
 
-    ssc.start()
-    ssc.awaitTermination()
-    ssc.stop()
-
   }
 }
