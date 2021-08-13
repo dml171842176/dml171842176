@@ -32,7 +32,7 @@ abstract class SparkTool extends Logging {
     //创建spark环境
     spark = SparkSession
       .builder()
-      .master("local")
+      .master("local[2]")
       .appName(this.getClass.getSimpleName.replace("$", ""))
       //.enableHiveSupport() //开启hive的元数据支持
       .getOrCreate()

@@ -85,8 +85,9 @@ object CarDataToES extends SparkTool {
       )
 
       //增加唯一字段
-      val resultDS: DataFrame = carDS.withColumn("id", concat($"car", expr("'_'"), $"time"))
-        .withColumn("location", array($"lat", $"lon"))
+      val resultDS: DataFrame = carDS
+        .withColumn("id", concat($"car", expr("'_'"), $"time"))
+        .withColumn("location", array($"lon", $"lat"))
 
 
       import org.elasticsearch.spark.sql._
@@ -95,11 +96,7 @@ object CarDataToES extends SparkTool {
         "es.nodes.wan.only" -> "true",
         "es.nodes" -> "master",
         "es.port" -> "9200",
-        "es.mapping.id" -> "id",
-        "es.batch.write.retry.count" -> "10",
-        "es.batch.write.retry.wait" -> "60",
-        "es.http.timeout" -> "100s"
-
+        "es.mapping.id" -> "id"
       )
 
 
@@ -117,7 +114,7 @@ PUT /cars/
 }
 
        */
-
+      resultDS.show()
       //将数据保存到中
       resultDS.saveToEs("cars", options)
 
